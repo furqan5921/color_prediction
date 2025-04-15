@@ -12,13 +12,20 @@ const getAllRandomNumbers = async (req, res) => {
 const getLastRoundId = async (req, res) => {
     try {
         const roundId = await randomcolorModels.findOne().sort({ createdAt: -1 });
-        if (!roundId.randomNumber) {
+        if (!roundId) {
             const randomNumber = Math.floor(Math.random() * 10);
-            numbers = { roundId: roundId, randomNumber: randomNumber };
+            const newRound = new randomcolorModels({
+                roundId: `R${Date.now()}`,
+                randomNumber: randomNumber,
+                createdAt: new Date()
+            });
+            await newRound.save();
+            return res.status(200).json(newRound);
         }
         res.status(200).json(roundId);
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error("Error in getLastRoundId:", error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 // Get All Random Numbers
@@ -40,11 +47,19 @@ const getRandomNumberById = async (req, res) => {
 const addRandomNumber = async (req, res) => {
     try {
         const { roundId, randomNumber } = req.body;
-        const newRandom = new randomcolorModels({ roundId, randomNumber });
+        const newRandom = new randomcolorModels({
+            roundId,
+            randomNumber,
+            createdAt: new Date() // Add timestamp
+        });
         await newRandom.save();
-        res.status(201).json({ message: 'Random number added successfully' });
+        res.status(201).json({
+            message: 'Random number added successfully',
+            result: newRandom
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error("Error adding random number:", error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
