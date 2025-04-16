@@ -53,10 +53,58 @@ mongoose.connect(process.env.MONGO_URI, {
   });
 
 // --- API Routes ---
+// Add logging for debugging route issues
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Mount all routes correctly
 app.use('/api', authRoutes);
-app.use('/api/users', userRoutes); // Prefix user routes with /api/users (example)
-app.use('/api/color', colorPredictionRoutes); // Game related routes
-app.use('/api/admin', adminRoutes); // Admin routes
+
+// Make sure user routes are properly mounted directly at /api
+// This is crucial for /api/withdrawal-request and /api/deposit-request
+app.use('/', userRoutes); // Mount at root level since the routes already include /api prefix
+
+// Game related routes
+app.use('/api/color', colorPredictionRoutes);
+
+// Admin routes
+app.use('/api/admin', adminRoutes);
+
+// Add a debug endpoint to track all registered routes
+app.get('/api/routes', (req, res) => {
+  const routes = [];
+
+  // Express 4.x - iterate through registered routes
+  app._router.stack.forEach(middleware => {
+    if (middleware.route) {
+      // Routes registered directly on the app
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      // Router middleware
+      middleware.handle.stack.forEach(handler => {
+        if (handler.route) {
+          const path = handler.route.path;
+          routes.push({
+            path: path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+
+  // Log all routes to a file for debugging
+  const fs = require('fs');
+  fs.writeFileSync('./logs/api_routes.log', JSON.stringify(routes, null, 2));
+
+  res.json({ routes });
+});
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {

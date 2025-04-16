@@ -4,6 +4,7 @@ const colorController = require('../controller/colorController');
 const { getAllRandomNumbers, addRandomNumber, getRandomNumberById, deleteRandomNumber, getLastRoundId } = require('../controller/selectColorCOntroller');
 const { deleteReferralCode, getAllReferralCodes, addReferralCode } = require('../controller/referalCodeController');
 const gameStateMiddleware = require('../middleware/gameStateMiddleware');
+const Deposit = require('../models/Deposit');
 
 // Game routes
 router.post('/place-bet', gameStateMiddleware, colorController.placeBet);  // Place a bet

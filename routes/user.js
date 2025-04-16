@@ -84,6 +84,7 @@ router.post('/api/withdrawal-request', async (req, res) => {
 
     if (missingFields.length > 0) {
       return res.status(400).json({
+        success: false,
         message: `Missing required fields: ${missingFields.join(', ')}`
       });
     }
@@ -102,14 +103,34 @@ router.post('/api/withdrawal-request', async (req, res) => {
     }
 
     if (!userObjectId) {
-      return res.status(400).json({ message: 'Invalid userId format' });
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId format'
+      });
+    }
+
+    // Find user to check wallet balance
+    const user = await User.findById(userObjectId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Validate if user has enough balance
+    if (user.wallet < amount) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient balance. You have ₹${user.wallet.toFixed(2)} but requested ₹${amount.toFixed(2)}`
+      });
     }
 
     // Create a new withdrawal request
     const withdrawal = new Withdrawal({
       userId: userObjectId,
       username,
-      amount,
+      amount: Number(amount),
       mobile,
       upiId,
       bankName,
@@ -120,10 +141,18 @@ router.post('/api/withdrawal-request', async (req, res) => {
     });
 
     await withdrawal.save();
-    res.status(201).json({ message: 'Withdrawal request created successfully', withdrawal });
+    res.status(201).json({
+      success: true,
+      message: 'Withdrawal request created successfully',
+      withdrawal
+    });
   } catch (error) {
     console.error('Error creating withdrawal request:', error);
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 
@@ -143,6 +172,7 @@ router.post('/api/deposit-request', async (req, res) => {
 
     if (missingFields.length > 0) {
       return res.status(400).json({
+        success: false,
         message: `Missing required fields: ${missingFields.join(', ')}`
       });
     }
@@ -161,24 +191,35 @@ router.post('/api/deposit-request', async (req, res) => {
     }
 
     if (!userObjectId) {
-      return res.status(400).json({ message: 'Invalid userId format' });
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId format'
+      });
     }
 
     // Create a new deposit request
     const deposit = new Deposit({
       userId: userObjectId,
       username,
-      amount,
+      amount: Number(amount),
       mobile,
       utrNumber,
       status: 'pending'
     });
 
     await deposit.save();
-    res.status(201).json({ message: 'Deposit request created successfully', deposit });
+    res.status(201).json({
+      success: true,
+      message: 'Deposit request created successfully',
+      deposit
+    });
   } catch (error) {
     console.error('Error creating deposit request:', error);
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 

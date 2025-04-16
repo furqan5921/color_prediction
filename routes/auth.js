@@ -4,7 +4,11 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { referalCodeModels } = require('../models/refralCode');
+const crypto = require('crypto'); // Add crypto for generating reset tokens
 const JWT_SECRET = 'bunneybet';
+
+// Add a model for password reset tokens
+const PasswordReset = require('../models/PasswordReset');
 
 router.post('/signup', async (req, res) => {
   const { username, email, password, referalId } = req.body;
@@ -127,5 +131,118 @@ router.get('/name/:id', async (req, res) => {
   }
 });
 
+// Request password reset
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User with this email does not exist' });
+    }
+
+    // Generate a reset token
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetTokenExpires = Date.now() + 3600000; // 1 hour from now
+
+    // Store the reset token in the database
+    await PasswordReset.findOneAndDelete({ userId: user._id }); // Delete any existing token
+
+    await PasswordReset.create({
+      userId: user._id,
+      token: resetToken,
+      expires: resetTokenExpires
+    });
+
+    // In a real app, you would send an email with a reset link
+    // For this demo, we'll just return the token
+    res.status(200).json({
+      message: 'Password reset token generated successfully',
+      resetToken,
+      // In production, you would not return the token in the response
+      // This is just for demonstration purposes
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Verify reset token
+router.post('/verify-reset-token', async (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ message: 'Token is required' });
+  }
+
+  try {
+    // Find token in database
+    const passwordReset = await PasswordReset.findOne({
+      token,
+      expires: { $gt: Date.now() }
+    });
+
+    if (!passwordReset) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    res.status(200).json({ message: 'Token is valid', userId: passwordReset.userId });
+  } catch (err) {
+    console.error('Token verification error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Reset password
+router.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ message: 'Token and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    // Find token in database
+    const passwordReset = await PasswordReset.findOne({
+      token,
+      expires: { $gt: Date.now() }
+    });
+
+    if (!passwordReset) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    // Find user
+    const user = await User.findById(passwordReset.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user's password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Delete the used token
+    await PasswordReset.findOneAndDelete({ token });
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

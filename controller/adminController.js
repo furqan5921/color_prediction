@@ -9,6 +9,7 @@ const Withdrawal = require('../models/Withdrawal');
 const Deposit = require('../models/Deposit');
 const PaymentSettings = require('../models/PaymentSettings');
 const { colorModels } = require('../models/ColorModel');
+const mongoose = require('mongoose');
 
 router.post('/admin/signup', async (req, res) => {
   const { username, email, password } = req.body;
@@ -119,6 +120,171 @@ router.get('/admin/deposit-requests', async (req, res) => {
   } catch (error) {
     console.error('Error fetching deposit requests:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Add deposit request (new endpoint)
+router.post('/admin/deposit-request', async (req, res) => {
+  try {
+    console.log("Deposit request received:", req.body);
+
+    const { userId, username, amount, mobile, utrNumber } = req.body;
+
+    // Validate the input with detailed error messages
+    const missingFields = [];
+    if (!userId) missingFields.push('userId');
+    if (!username) missingFields.push('username');
+    if (!amount) missingFields.push('amount');
+    if (!mobile) missingFields.push('mobile');
+    if (!utrNumber) missingFields.push('utrNumber');
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    // Convert userId to ObjectId if it's a valid string ID
+    let userObjectId;
+    try {
+      userObjectId = mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : null;
+    } catch (error) {
+      console.error('Error converting userId to ObjectId:', error);
+      userObjectId = null;
+    }
+
+    if (!userObjectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId format'
+      });
+    }
+
+    // Create a new deposit request
+    const deposit = new Deposit({
+      userId: userObjectId,
+      username,
+      amount: Number(amount),
+      mobile,
+      utrNumber,
+      status: 'pending'
+    });
+
+    await deposit.save();
+    res.status(201).json({
+      success: true,
+      message: 'Deposit request created successfully',
+      deposit
+    });
+  } catch (error) {
+    console.error('Error creating deposit request:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Add withdrawal request for admin panel
+router.post('/admin/withdrawal-request', async (req, res) => {
+  try {
+    console.log("Admin withdrawal request received:", req.body);
+
+    const {
+      userId,
+      username,
+      amount,
+      mobile,
+      upiId,
+      bankName,
+      ifscCode,
+      accountNumber,
+      branchName
+    } = req.body;
+
+    // Validate the input with detailed error messages
+    const missingFields = [];
+    if (!userId) missingFields.push('userId');
+    if (!username) missingFields.push('username');
+    if (!amount) missingFields.push('amount');
+    if (!mobile) missingFields.push('mobile');
+    if (!upiId && !(bankName && ifscCode && accountNumber)) {
+      missingFields.push('payment method (UPI ID or bank details)');
+    }
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    // Convert userId to ObjectId if it's a valid string ID
+    let userObjectId;
+    try {
+      userObjectId = mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : null;
+    } catch (error) {
+      console.error('Error converting userId to ObjectId:', error);
+      userObjectId = null;
+    }
+
+    if (!userObjectId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId format'
+      });
+    }
+
+    // Find user to check wallet balance
+    const user = await User.findById(userObjectId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Validate if user has enough balance
+    if (user.wallet < amount) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient balance. User has ₹${user.wallet.toFixed(2)} but requested ₹${amount.toFixed(2)}`
+      });
+    }
+
+    // Create a new withdrawal request
+    const withdrawal = new Withdrawal({
+      userId: userObjectId,
+      username,
+      amount: Number(amount),
+      mobile,
+      upiId,
+      bankName,
+      ifscCode,
+      accountNumber,
+      branchName,
+      status: 'pending'
+    });
+
+    await withdrawal.save();
+    res.status(201).json({
+      success: true,
+      message: 'Withdrawal request created successfully',
+      withdrawal
+    });
+  } catch (error) {
+    console.error('Error creating withdrawal request:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 
