@@ -18,27 +18,34 @@ const app = express();
 const server = http.createServer(app);
 
 // --- Configure CORS ---
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "https://kingmills.vercel.app", // Your production frontend URL from .env
-  "http://localhost:5173" // Your local development frontend URL
-];
+// const allowedOrigins = [
+//   process.env.FRONTEND_URL || "https://kingmills.vercel.app", // Your production frontend URL from .env
+//   "http://localhost:5173" // Your local development frontend URL
+// ];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin OR from allowed origins
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true, // Allow cookies if needed for authentication
-};
-
-app.use(cors(corsOptions));
-app.use(express.json()); // Middleware to parse JSON bodies
+// const corsOptions = {
+//   origin: function (origin, callback) {
+//     // Allow requests with no origin OR from allowed origins
+//     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+//       callback(null, true);
+//     } else {
+//       console.warn(`CORS blocked origin: ${origin}`);
+//       callback(new Error('Not allowed by CORS'));
+//     }
+//   },
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//   credentials: true, // Allow cookies if needed for authentication
+// };
+app.use(express.json());
+app.use(
+  cors({
+    origin: ["https://kingmills.vercel.app","https://www.kingmall.live"], 
+    methods: ['POST', 'GET', 'PUT', 'DELETE'], 
+    credentials: true, 
+  })
+);
+app.use(cors());
+ // Middleware to parse JSON bodies
 
 // --- MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI, {
