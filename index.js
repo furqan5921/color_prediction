@@ -12,6 +12,7 @@ const userRoutes = require('./routes/user'); // Check if this is correct, might 
 const colorPredictionRoutes = require('./routes/colorRoutes');
 const { colorModels } = require('./models/ColorModel'); // Bet history model
 const User = require('./models/User'); // User model
+const AdminDeclaredResult = require('./models/AdminDeclaredResult'); // Import admin declared result model
 
 const app = express();
 const server = http.createServer(app);
@@ -70,8 +71,8 @@ app.use('/', userRoutes); // Mount at root level since the routes already includ
 // Game related routes
 app.use('/api/color', colorPredictionRoutes);
 
-// Admin routes
-app.use('/api/admin', adminRoutes);
+// Admin routes - mount at root level since adminController already includes full paths
+app.use('/', adminRoutes); // Changed from '/api/admin' to '/' because routes already have '/api/admin' prefix
 
 // Add a debug endpoint to track all registered routes
 app.get('/api/routes', (req, res) => {
@@ -184,10 +185,27 @@ const runGameCycle = async () => {
     io.emit("timerEnded", { roundId: completedRoundId, message: "Processing results..." });
 
     try {
-      // 1. Generate the winning number (0-9)
-      const randomNumberResult = generateRoundResult();
-      const resultColorName = getColorForResult(randomNumberResult); // Get corresponding color
-      console.log(`[${new Date().toISOString()}] Round ${completedRoundId} result generated: Number=${randomNumberResult}, Color=${resultColorName}`);
+      // 1. Check if there's an admin-declared result for this round
+      const adminDeclaredResult = await AdminDeclaredResult.findOne({ roundId: completedRoundId });
+
+      let randomNumberResult, resultColorName;
+
+      if (adminDeclaredResult) {
+        // Use the admin-declared result
+        randomNumberResult = adminDeclaredResult.resultNumber;
+        resultColorName = adminDeclaredResult.resultColor;
+
+        console.log(`[${new Date().toISOString()}] Using ADMIN-DECLARED result for round ${completedRoundId}: Number=${randomNumberResult}, Color=${resultColorName}`);
+
+        // Mark the admin result as applied
+        await AdminDeclaredResult.markAsApplied(completedRoundId);
+      } else {
+        // No admin-declared result, generate a random result
+        randomNumberResult = generateRoundResult();
+        resultColorName = getColorForResult(randomNumberResult); // Get corresponding color
+
+        console.log(`[${new Date().toISOString()}] Round ${completedRoundId} result RANDOMLY generated: Number=${randomNumberResult}, Color=${resultColorName}`);
+      }
 
       // Store the result in the app.locals.roundResults array
       app.locals.roundResults.unshift({

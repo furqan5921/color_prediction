@@ -11,7 +11,7 @@ const PaymentSettings = require('../models/PaymentSettings');
 const { colorModels } = require('../models/ColorModel');
 const mongoose = require('mongoose');
 
-router.post('/admin/signup', async (req, res) => {
+router.post('/api/admin/signup', async (req, res) => {
   const { username, email, password } = req.body;
   console.log(req.body)
   try {
@@ -45,7 +45,7 @@ router.post('/admin/signup', async (req, res) => {
 });
 
 // Login Route
-router.post('/admin/login', async (req, res) => {
+router.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -102,7 +102,7 @@ const isAdmin = async (req, res, next) => {
 };
 
 // Get all withdrawal requests
-router.get('/admin/withdrawal-requests', async (req, res) => {
+router.get('/api/admin/withdrawal-requests', async (req, res) => {
   try {
     const withdrawals = await Withdrawal.find().sort({ createdAt: -1 });
     res.json(withdrawals);
@@ -113,7 +113,7 @@ router.get('/admin/withdrawal-requests', async (req, res) => {
 });
 
 // Get all deposit requests
-router.get('/admin/deposit-requests', async (req, res) => {
+router.get('/api/admin/deposit-requests', async (req, res) => {
   try {
     const deposits = await Deposit.find().sort({ createdAt: -1 });
     res.json(deposits);
@@ -124,7 +124,7 @@ router.get('/admin/deposit-requests', async (req, res) => {
 });
 
 // Add deposit request (new endpoint)
-router.post('/admin/deposit-request', async (req, res) => {
+router.post('/api/admin/deposit-request', async (req, res) => {
   try {
     console.log("Deposit request received:", req.body);
 
@@ -190,7 +190,7 @@ router.post('/admin/deposit-request', async (req, res) => {
 });
 
 // Add withdrawal request for admin panel
-router.post('/admin/withdrawal-request', async (req, res) => {
+router.post('/api/admin/withdrawal-request', async (req, res) => {
   try {
     console.log("Admin withdrawal request received:", req.body);
 
@@ -289,7 +289,7 @@ router.post('/admin/withdrawal-request', async (req, res) => {
 });
 
 // Update withdrawal request status
-router.put('/admin/withdrawal-requests/:id', async (req, res) => {
+router.put('/api/admin/withdrawal-requests/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -345,7 +345,7 @@ router.put('/admin/withdrawal-requests/:id', async (req, res) => {
 });
 
 // Update deposit request status
-router.put('/admin/deposit-requests/:id', async (req, res) => {
+router.put('/api/admin/deposit-requests/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -396,7 +396,7 @@ router.put('/admin/deposit-requests/:id', async (req, res) => {
 });
 
 // Get payment settings
-router.get('/admin/payment-settings', async (req, res) => {
+router.get('/api/admin/payment-settings', async (req, res) => {
   try {
     const settings = await PaymentSettings.getSingletonInstance();
     res.json(settings);
@@ -407,7 +407,7 @@ router.get('/admin/payment-settings', async (req, res) => {
 });
 
 // Update payment settings
-router.put('/admin/payment-settings', async (req, res) => {
+router.put('/api/admin/payment-settings', async (req, res) => {
   try {
     const { upiId, phoneNumber, qrCodeUrl } = req.body;
 
@@ -434,35 +434,65 @@ router.put('/admin/payment-settings', async (req, res) => {
 });
 
 // Get admin dashboard stats
-router.get('/admin/stats', async (req, res) => {
+router.get('/api/admin/stats', async (req, res) => {
+  console.log("Getting admin stats");
   try {
     // Count total users
     const totalUsers = await User.countDocuments();
+    console.log("Total users:", totalUsers);
 
     // Count active users (users who have made a bet in the last 24 hours)
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    const activeGames = await colorModels.find({ createdAt: { $gte: oneDayAgo } });
-    const activeUserIds = new Set(activeGames.map(game => game.user.toString()));
-    const activeUsers = activeUserIds.size;
+
+    let activeUsers = 0;
+    try {
+      const activeGames = await colorModels.find({ createdAt: { $gte: oneDayAgo } });
+      const activeUserIds = new Set(activeGames.map(game => game.user ? game.user.toString() : null).filter(Boolean));
+      activeUsers = activeUserIds.size;
+      console.log("Active users:", activeUsers);
+    } catch (activeUserError) {
+      console.error("Error counting active users:", activeUserError);
+    }
 
     // Sum of all approved deposits
-    const approvedDeposits = await Deposit.find({ status: 'approved' });
-    const totalDeposits = approvedDeposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+    let totalDeposits = 0;
+    try {
+      const approvedDeposits = await Deposit.find({ status: 'approved' });
+      totalDeposits = approvedDeposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+      console.log("Total deposits:", totalDeposits);
+    } catch (depositError) {
+      console.error("Error calculating total deposits:", depositError);
+    }
 
     // Sum of all approved withdrawals
-    const approvedWithdrawals = await Withdrawal.find({ status: 'approved' });
-    const totalWithdrawals = approvedWithdrawals.reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
+    let totalWithdrawals = 0;
+    try {
+      const approvedWithdrawals = await Withdrawal.find({ status: 'approved' });
+      totalWithdrawals = approvedWithdrawals.reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
+      console.log("Total withdrawals:", totalWithdrawals);
+    } catch (withdrawalError) {
+      console.error("Error calculating total withdrawals:", withdrawalError);
+    }
 
-    res.json({
+    const stats = {
       totalUsers,
       activeUsers,
       totalDeposits,
       totalWithdrawals
-    });
+    };
+
+    console.log("Returning stats:", stats);
+    res.json(stats);
   } catch (error) {
     console.error('Error fetching admin stats:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({
+      message: 'Internal server error',
+      totalUsers: 0,
+      activeUsers: 0,
+      totalDeposits: 0,
+      totalWithdrawals: 0
+    });
   }
 });
 
@@ -497,6 +527,20 @@ router.get('/admin/check-status', async (req, res) => {
   } catch (error) {
     console.error('Error checking admin status:', error);
     res.status(401).json({ isAdmin: false, message: 'Invalid token' });
+  }
+});
+
+// Debug route to check if admin controller is working
+router.get('/api/admin/debug', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Admin controller is working',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in debug route:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 

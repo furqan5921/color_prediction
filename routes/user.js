@@ -141,10 +141,13 @@ router.post('/api/withdrawal-request', async (req, res) => {
     });
 
     await withdrawal.save();
+
+    // Return current wallet balance for UI update
     res.status(201).json({
       success: true,
       message: 'Withdrawal request created successfully',
-      withdrawal
+      withdrawal,
+      currentBalance: user.wallet
     });
   } catch (error) {
     console.error('Error creating withdrawal request:', error);
