@@ -15,6 +15,11 @@ const paymentSettingsSchema = new mongoose.Schema({
         type: String,
         required: true,
         default: 'https://via.placeholder.com/150'
+    },
+    telegramLink: {
+        type: String,
+        required: false,
+        default: 'https://t.me/Gopal2580'
     }
 }, { timestamps: true });
 

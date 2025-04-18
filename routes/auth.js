@@ -37,7 +37,7 @@ router.post('/signup', async (req, res) => {
       email,
       password: hashedPassword,
       // userNo: userNo,
-      wallet: 15000,
+      wallet: 0,
     });
 
     const savedUser = await newUser.save();
